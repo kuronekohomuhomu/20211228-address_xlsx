@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>連絡先管理</title>
+<script
+src="https://cdn.jsdelivr.net/npm/xlsx-populate@1.21.0/browser/xlsx-populate.js">
+</script>
+<script>
+let addressData = new Array();
+let index;
+// Excel用ヘッダラベル
+const label = ["名前", "会社", "電話番号", "メールアドレス", "備考"];
+
+const init = () => {
+    // ローカルストレージから読み込み
+    const loadData = localStorage.getItem("contact");
+    if (loadData != null) addressData = JSON.parse(loadData);
+    // 連絡先一覧を表示
+    listAddress();
+}
+
+const listAddress = () => {
+    // 連絡先の一覧表示
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+    for (let i = 0; i < addressData.length; i++) {
+        const tr = document.createElement("tr");
+        const op = document.createElement("td");
+        const mod = document.createElement("button");
+        mod.innerText = "修正";
+        mod.onclick = () => openDialog(i);
+        op.appendChild(mod);
+        tr.appendChild(op);
+        for (let j = 0; j < label.length; j++) {
+            const td = document.createElement("td");
+            td.innerText = addressData[i][j];
+            tr.appendChild(td);
+        }
+        list.appendChild(tr);
+    }
+}
+
+const openDialog = (target = null) => {
+    // 追加／修正画面の表示
+    let [name, company, tel, mail, note] = ["", "", "", "", ""];
+    index = -1;
+    document.getElementById("setButton").value = "登録する";
+    document.getElementById("delButton").style.display = "none";
+    if (target != null) {
+        // 修正画面用データの取得
+        index = target;
+        [name, company, tel, mail, note] = addressData[index];
+        document.getElementById("setButton").value = "修正する";
+        document.getElementById("delButton").style.display = "inline";
+    }
+    document.getElementById("name").value = name;
+    document.getElementById("company").value = company;
+    document.getElementById("tel").value = tel;
+    document.getElementById("mail").value = mail;
+    document.getElementById("note").value = note;
+    document.getElementById("addressDialog").showModal();
+}
+
+const closeDialog = () => {
+    // 追加／修正画面を閉じる
+    document.getElementById("addressDialog").close();
+    // ローカルストレージに連絡先データを保存、連絡先一覧の再表示
+    localStorage.setItem("contact", JSON.stringify(addressData));
+    listAddress();
+}
+
+const setAddress = () => {
+    // 連絡先の追加／修正
+    const name = document.getElementById("name").value;
+    const company = document.getElementById("company").value;
+    const tel = document.getElementById("tel").value;
+    const mail = document.getElementById("mail").value;
+    const note = document.getElementById("note").value;
+    if ((name != "") || (company != "")) {
+        if (index == -1) {
+            // 追加
+            addressData.push([name, company, tel, mail, note]);
+        } else {
+            // 修正
+            addressData[index] = [name, company, tel, mail, note];
+        }
+        closeDialog();
+    } else {
+        alert("名前または会社を入力してください。");
+        document.getElementById("name").focus();
+    }
+}
+
+const deleteAddress = () => {
+    // 連絡先の削除
+    if (window.confirm("この連絡先を削除しますか?")) {
+        addressData.splice(index, 1);
+        closeDialog();
+    }
+}
+
+const saveExcel = () => {
+    // Excelファイルの保存（ダウンロード）
+    const filename = window.prompt("ファイル名を入力してください", "address.xlsx");
+    XlsxPopulate.fromBlankAsync().then(workbook => {
+        // Excelへ変換
+        workbook.sheet(0).name("連絡先");
+        for (let i = 0; i < label.length; i++) {
+            const cell = workbook.sheet(0).row(1).cell(i+1);
+            cell.value(label[i]);
+            cell.style({"fill":"CC9999", "border":"thin"});
+            workbook.sheet(0).column(i+1).width(25);
+        }
+        for (let j = 0; j < addressData.length; j++) {
+            const row = workbook.sheet(0).row(j+2);
+            for (let k = 0; k < label.length; k++) {
+                const cell = row.cell(k+1);
+                cell.value(addressData[j][k]);
+                cell.style("border", "thin");
+            }
+        }
+        // 保存
+        workbook.outputAsync().then(blob => {
+            if (filename != null) {
+                const a = document.createElement("a");
+                a.href = window.URL.createObjectURL(blob);
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+        });
+    }).catch(error => {
+        // エラー
+        document.getElementById("message").innerText = error;
+    });
+}
+</script>
+<style>
+table {
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+.header {background-color: #CC9999;}
+td {
+    border: thin solid #000000;
+    padding: 5px;
+}
+dialog {background-color: #99CCCC;}
+input[type="text"] {width: 300px;}
+</style>
+</head>
+<body onload="init()">
+<p>連絡先管理</p>
+<input type="button" value="連絡先を追加する" onclick="openDialog()">
+<input type="button" value="Excel(xlsx形式)出力" onclick="saveExcel()">
+<span id="message"></span>
+<hr>
+<table>
+<thead><tr class="header"><td></td>
+<td>名前</td><td>会社</td><td>電話番号</td><td>メールアドレス</td><td>備考</td>
+</tr></thead>
+<tbody id="list"></tbody>
+</table>
+<dialog id="addressDialog">
+名前：<br><input type="text" id="name"><br>
+会社：<br><input type="text" id="company"><br>
+電話番号：<br><input type="text" id="tel"><br>
+メールアドレス：<br><input type="text" id="mail"><br>
+備考：<br><input type="text" id="note">
+<hr>
+<input type="button" id="setButton" value="登録する" onclick="setAddress()">
+<input type="button" id="delButton" value="削除する" onclick="deleteAddress()">
+<input type="button" value="キャンセル" onclick="closeDialog()">
+</dialog>
+</body>
+</html>
